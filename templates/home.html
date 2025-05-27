@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}ホーム - RSS要約システム{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-home"></i> ダッシュボード
+        </h1>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-newspaper fa-2x mb-2"></i>
+                <div class="stats-number">{{ stats.total_articles }}</div>
+                <div>総記事数</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-eye-slash fa-2x mb-2"></i>
+                <div class="stats-number">{{ stats.unread_articles }}</div>
+                <div>未読記事</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card">
+            <div class="card-body text-center">
+                <i class="fas fa-rss fa-2x mb-2"></i>
+                <div class="stats-number">{{ stats.total_feeds }}</div>
+                <div>アクティブフィード</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-bolt"></i> クイックアクション
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <a href="/articles?unread_only=true" class="btn btn-primary w-100">
+                            <i class="fas fa-eye-slash"></i> 未読記事を見る
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="/feeds" class="btn btn-success w-100">
+                            <i class="fas fa-plus"></i> RSSフィード追加
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="/admin" class="btn btn-warning w-100">
+                            <i class="fas fa-cog"></i> システム管理
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <a href="/articles" class="btn btn-info w-100">
+                            <i class="fas fa-list"></i> 全記事一覧
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Articles -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-clock"></i> 最新記事
+                </h5>
+                <a href="/articles" class="btn btn-sm btn-outline-primary">
+                    すべて見る <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+            <div class="card-body">
+                {% if articles %}
+                    <div class="row">
+                        {% for article in articles %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card article-card h-100 {% if not article.is_read %}unread{% endif %}">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <a href="/article/{{ article.id }}" class="text-decoration-none">
+                                            {{ article.title[:100] }}{% if article.title|length > 100 %}...{% endif %}
+                                        </a>
+                                    </h6>
+                                    <p class="card-text text-muted small">
+                                        {% if article.top_summary %}
+                                            {{ article.top_summary[:150] }}{% if article.top_summary|length > 150 %}...{% endif %}
+                                        {% else %}
+                                            {{ article.description[:150] }}{% if article.description|length > 150 %}...{% endif %}
+                                        {% endif %}
+                                    </p>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">
+                                            <i class="fas fa-calendar"></i>
+                                            {% if article.published_date %}
+                                                {{ article.published_date.strftime('%Y-%m-%d %H:%M') }}
+                                            {% else %}
+                                                {{ article.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                            {% endif %}
+                                        </small>
+                                        {% if not article.is_read %}
+                                            <span class="badge bg-primary">未読</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="mt-2 d-flex justify-content-between">
+                                        <a href="/article/{{ article.id }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i> 詳細
+                                        </a>
+                                        <form method="post" action="/article/{{ article.id }}/delete" onsubmit="return confirm('この記事を削除してもよろしいですか？');">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-trash"></i> 削除
+                                            </button>
+                                        </form>
+                                    </div>
+                                    {% if article.keywords %}
+                                    <div class="mt-2">
+                                        {% for keyword in article.keywords[:3] %}
+                                            <span class="badge bg-secondary keyword-badge me-1">{{ keyword.name }}</span>
+                                        {% endfor %}
+                                        {% if article.keywords|length > 3 %}
+                                            <span class="badge bg-light text-dark keyword-badge">+{{ article.keywords|length - 3 }}</span>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-newspaper fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">まだ記事がありません。RSSフィードを追加してください。</p>
+                        <a href="/feeds" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> RSSフィード追加
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

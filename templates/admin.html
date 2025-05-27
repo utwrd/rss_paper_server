@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+
+{% block title %}管理 - RSS要約システム{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="fas fa-cog"></i> システム管理
+        </h1>
+    </div>
+</div>
+
+<!-- Manual Actions -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-play"></i> 手動実行
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-download fa-2x text-primary mb-2"></i>
+                                <h6>RSS取得</h6>
+                                <p class="text-muted small">全てのアクティブなRSSフィードから新しい記事を取得します。</p>
+                                <form method="post" action="/admin/fetch-rss">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-download"></i> 実行
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-envelope fa-2x text-success mb-2"></i>
+                                <h6>要約メール送信</h6>
+                                <p class="text-muted small">未読記事の要約を作成してメールで送信します。</p>
+                                <form method="post" action="/admin/send-summary">
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fas fa-envelope"></i> 実行
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-brain fa-2x text-info mb-2"></i>
+                                <h6>要約生成</h6>
+                                <p class="text-muted small">未要約の記事の要約を一括生成します。</p>
+                                <form method="post" action="/admin/summarize-all">
+                                    <button type="submit" class="btn btn-info">
+                                        <i class="fas fa-brain"></i> 実行
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-test-tube fa-2x text-warning mb-2"></i>
+                                <h6>メールテスト</h6>
+                                <p class="text-muted small">メール設定をテストしてテストメールを送信します。</p>
+                                <form method="post" action="/admin/test-email">
+                                    <button type="submit" class="btn btn-warning">
+                                        <i class="fas fa-test-tube"></i> 実行
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Information -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-clock"></i> スケジュール情報
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if schedule_info %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>ジョブ</th>
+                                    <th>間隔</th>
+                                    <th>次回実行</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for job in schedule_info %}
+                                <tr>
+                                    <td>
+                                        {% if 'fetch_rss' in job.job %}
+                                            <i class="fas fa-download text-primary"></i> RSS取得
+                                        {% elif 'summary_email' in job.job %}
+                                            <i class="fas fa-envelope text-success"></i> 要約メール送信
+                                        {% else %}
+                                            {{ job.job }}
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ job.interval }} {{ job.unit }}</td>
+                                    <td>{{ job.next_run }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">スケジュール情報を取得できませんでした。</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- System Statistics -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-bar"></i> システム統計
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="stats-container">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">読み込み中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Email Logs -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-envelope-open-text"></i> メール送信履歴
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if email_logs %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>送信日時</th>
+                                    <th>宛先</th>
+                                    <th>件名</th>
+                                    <th>記事数</th>
+                                    <th>状態</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in email_logs %}
+                                <tr>
+                                    <td>
+                                        <small>{{ log.sent_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                    </td>
+                                    <td>
+                                        <small>{{ log.recipient }}</small>
+                                    </td>
+                                    <td>
+                                        {{ log.subject[:50] }}{% if log.subject|length > 50 %}...{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if log.articles_count > 0 %}
+                                            <span class="badge bg-info">{{ log.articles_count }}件</span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if log.status == 'sent' %}
+                                            <span class="badge bg-success">送信済み</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">失敗</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-envelope fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">メール送信履歴がありません。</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Configuration Info -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle"></i> 設定情報
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>スケジュール設定</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>RSS取得:</strong> 6時間ごと</li>
+                            <li><strong>要約メール:</strong> 毎日7:00</li>
+                            <li><strong>最大要約記事数:</strong> 10件</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>システム情報</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>アプリケーション:</strong> FastAPI</li>
+                            <li><strong>データベース:</strong> PostgreSQL</li>
+                            <li><strong>AI要約:</strong> OpenAI GPT-3.5</li>
+                            <li><strong>要約形式:</strong> 落合フォーマット</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Load system statistics
+async function loadStats() {
+    try {
+        const response = await fetch('/api/stats');
+        const stats = await response.json();
+        
+        const container = document.getElementById('stats-container');
+        container.innerHTML = `
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body text-center">
+                            <h4>${stats.total_articles}</h4>
+                            <small>総記事数</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card bg-warning text-dark">
+                        <div class="card-body text-center">
+                            <h4>${stats.unread_articles}</h4>
+                            <small>未読記事</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body text-center">
+                            <h4>${stats.total_feeds}</h4>
+                            <small>アクティブフィード</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body text-center">
+                            <h4>${Object.keys(stats.articles_by_day).length}</h4>
+                            <small>過去7日間のアクティブ日数</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-12">
+                    <h6>過去7日間の記事取得数</h6>
+                    <div class="d-flex justify-content-between">
+                        ${Object.entries(stats.articles_by_day).map(([date, count]) => 
+                            `<div class="text-center">
+                                <div class="badge bg-secondary">${count}</div>
+                                <br><small>${date}</small>
+                            </div>`
+                        ).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        console.error('Error loading stats:', error);
+        document.getElementById('stats-container').innerHTML = 
+            '<div class="alert alert-danger">統計情報の読み込みに失敗しました。</div>';
+    }
+}
+
+// Load stats on page load
+document.addEventListener('DOMContentLoaded', loadStats);
+</script>
+{% endblock %}

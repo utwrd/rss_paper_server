@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block title %}{{ article.title }} - RSS要約システム{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">ホーム</a></li>
+                <li class="breadcrumb-item"><a href="/articles">記事一覧</a></li>
+                <li class="breadcrumb-item active" aria-current="page">記事詳細</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Article Content -->
+        <div class="card">
+            <div class="card-header">
+                <h1 class="h4 mb-0">{{ article.title }}</h1>
+            </div>
+            <div class="card-body">
+                <!-- Article Meta -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <small class="text-muted d-block">
+                            <i class="fas fa-rss"></i> {{ article.feed.title }}
+                        </small>
+                        {% if article.author %}
+                        <small class="text-muted d-block">
+                            <i class="fas fa-user"></i> {{ article.author }}
+                        </small>
+                        {% endif %}
+                        <small class="text-muted d-block">
+                            <i class="fas fa-calendar"></i>
+                            {% if article.published_date %}
+                                {{ article.published_date.strftime('%Y年%m月%d日 %H:%M') }}
+                            {% else %}
+                                {{ article.created_at.strftime('%Y年%m月%d日 %H:%M') }}
+                            {% endif %}
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{{ article.link }}" target="_blank" class="btn btn-primary btn-sm">
+                                <i class="fas fa-external-link-alt"></i> 元記事を読む
+                            </a>
+                            <form method="post" action="/article/{{ article.id }}/delete" onsubmit="return confirm('この記事を削除してもよろしいですか？');">
+                                <button type="submit" class="btn btn-danger btn-sm">
+                                    <i class="fas fa-trash"></i> 削除
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Keywords -->
+                {% if article.keywords %}
+                <div class="mb-3">
+                    <strong>キーワード:</strong>
+                    {% for keyword in article.keywords %}
+                        <span class="badge bg-secondary keyword-badge me-1">{{ keyword.name }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Description -->
+                {% if article.description %}
+                <div class="mb-4">
+                    <h5>概要</h5>
+                    <p class="text-muted">{{ article.description }}</p>
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Summary Section -->
+        {% if article.is_summarized and article.summary %}
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-brain"></i> AI要約（落合フォーマット）
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="summaryAccordion">
+                    <!-- 1. どんなもの？ -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingOne">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+                                1. どんなもの？
+                            </button>
+                        </h2>
+                        <div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne" data-bs-parent="#summaryAccordion">
+                            <div class="accordion-body">
+                                {{ article.top_summary | replace('\n', '<br>') | safe }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 2. 先行研究と比べてどこがすごい？ -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingTwo">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+                                2. 先行研究と比べてどこがすごい？
+                            </button>
+                        </h2>
+                        <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#summaryAccordion">
+                            <div class="accordion-body">
+                                {{ article.comparison | replace('\n', '<br>') | safe }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 3. 技術や手法のキモはどこ？ -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingThree">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
+                                3. 技術や手法のキモはどこ？
+                            </button>
+                        </h2>
+                        <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#summaryAccordion">
+                            <div class="accordion-body">
+                                {{ article.technique | replace('\n', '<br>') | safe }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 4. どうやって有効だと検証した？ -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingFour">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFour" aria-expanded="false" aria-controls="collapseFour">
+                                4. どうやって有効だと検証した？
+                            </button>
+                        </h2>
+                        <div id="collapseFour" class="accordion-collapse collapse" aria-labelledby="headingFour" data-bs-parent="#summaryAccordion">
+                            <div class="accordion-body">
+                                {{ article.validation | replace('\n', '<br>') | safe }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 5. 議論はある？ -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingFive">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFive" aria-expanded="false" aria-controls="collapseFive">
+                                5. 議論はある？
+                            </button>
+                        </h2>
+                        <div id="collapseFive" class="accordion-collapse collapse" aria-labelledby="headingFive" data-bs-parent="#summaryAccordion">
+                            <div class="accordion-body">
+                                {{ article.discussion | replace('\n', '<br>') | safe }}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 6. 次読むべき論文は？ -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingSix">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSix" aria-expanded="false" aria-controls="collapseSix">
+                                6. 次読むべき論文は？
+                            </button>
+                        </h2>
+                        <div id="collapseSix" class="accordion-collapse collapse" aria-labelledby="headingSix" data-bs-parent="#summaryAccordion">
+                            <div class="accordion-body">
+                                {{ article.next_papers | replace('\n', '<br>') | safe }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="fas fa-exclamation-triangle"></i> 要約未作成
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-0">この記事はまだ要約されていません。</p>
+                <small class="text-muted">次回の自動要約処理で作成されます。</small>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Article Info -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle"></i> 記事情報
+                </h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <td><strong>ID</strong></td>
+                        <td>{{ article.id }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>GUID</strong></td>
+                        <td><small>{{ article.guid[:50] }}{% if article.guid|length > 50 %}...{% endif %}</small></td>
+                    </tr>
+                    <tr>
+                        <td><strong>読み状態</strong></td>
+                        <td>
+                            {% if article.is_read %}
+                                <span class="badge bg-success">既読</span>
+                            {% else %}
+                                <span class="badge bg-primary">未読</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>要約状態</strong></td>
+                        <td>
+                            {% if article.is_summarized %}
+                                <span class="badge bg-success">要約済み</span>
+                            {% else %}
+                                <span class="badge bg-secondary">未要約</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>登録日時</strong></td>
+                        <td><small>{{ article.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Feed Info -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-rss"></i> フィード情報
+                </h5>
+            </div>
+            <div class="card-body">
+                <h6>{{ article.feed.title }}</h6>
+                {% if article.feed.description %}
+                <p class="text-muted small">{{ article.feed.description }}</p>
+                {% endif %}
+                <a href="/articles?feed_id={{ article.feed.id }}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-list"></i> このフィードの記事一覧
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.content-text {
+    line-height: 1.8;
+    font-size: 1.1rem;
+}
+
+.summary-content {
+    line-height: 1.6;
+    white-space: pre-line;
+}
+
+.summary-content h1,
+.summary-content h2,
+.summary-content h3,
+.summary-content h4,
+.summary-content h5,
+.summary-content h6 {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+}
+
+.summary-content h1 { font-size: 1.2rem; }
+.summary-content h2 { font-size: 1.1rem; }
+.summary-content h3 { font-size: 1rem; }
+
+.summary-content ul,
+.summary-content ol {
+    margin-left: 1rem;
+}
+
+.summary-content strong {
+    font-weight: bold;
+    color: #2c3e50;
+}
+</style>
+{% endblock %}

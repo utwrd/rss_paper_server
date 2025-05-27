@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+
+{% block title %}記事一覧 - RSS要約システム{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 選択した記事のIDを保持する配列
+    let selectedArticles = [];
+    
+    // 現在のURLからクエリパラメータを取得
+    const urlParams = new URLSearchParams(window.location.search);
+    const keyword = urlParams.get('keyword') || '';
+    const feedId = urlParams.get('feed_id') || '';
+    const unreadOnly = urlParams.get('unread_only') === 'true';
+    
+    // フィルター中の記事のIDを取得
+    const filteredArticleIds = Array.from(document.querySelectorAll('.article-card'))
+        .map(card => parseInt(card.dataset.articleId));
+    
+    // フィルター中の記事があれば「フィルター中の記事を削除」ボタンを表示
+    const deleteFilteredBtn = document.getElementById('deleteFilteredBtn');
+    if (filteredArticleIds.length > 0 && (keyword || feedId || unreadOnly)) {
+        deleteFilteredBtn.style.display = 'inline-block';
+    }
+    
+    // チェックボックスの変更イベントを監視
+    document.querySelectorAll('.article-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const articleId = parseInt(this.value);
+            
+            if (this.checked) {
+                // 選択した記事を配列に追加
+                if (!selectedArticles.includes(articleId)) {
+                    selectedArticles.push(articleId);
+                }
+            } else {
+                // 選択解除した記事を配列から削除
+                const index = selectedArticles.indexOf(articleId);
+                if (index !== -1) {
+                    selectedArticles.splice(index, 1);
+                }
+            }
+            
+            // 選択した記事数を更新
+            document.getElementById('selectedCount').textContent = selectedArticles.length;
+            
+            // 選択した記事があれば「選択した記事を削除」ボタンを表示
+            const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+            if (selectedArticles.length > 0) {
+                deleteSelectedBtn.style.display = 'inline-block';
+            } else {
+                deleteSelectedBtn.style.display = 'none';
+            }
+        });
+    });
+    
+    // 「フィルター中の記事を削除」ボタンのクリックイベント
+    deleteFilteredBtn.addEventListener('click', function() {
+        if (filteredArticleIds.length === 0) return;
+        
+        if (confirm(`フィルター中の記事 ${filteredArticleIds.length}件を削除してもよろしいですか？`)) {
+            deleteArticles(filteredArticleIds);
+        }
+    });
+    
+    // 「選択した記事を削除」ボタンのクリックイベント
+    document.getElementById('deleteSelectedBtn').addEventListener('click', function() {
+        if (selectedArticles.length === 0) return;
+        
+        if (confirm(`選択した記事 ${selectedArticles.length}件を削除してもよろしいですか？`)) {
+            deleteArticles(selectedArticles);
+        }
+    });
+    
+    // 記事を削除する関数
+    function deleteArticles(articleIds) {
+        fetch('/articles/delete-multiple', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(articleIds),
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(`${data.deleted}件の記事を削除しました。`);
+            // ページをリロード
+            window.location.reload();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('記事の削除中にエラーが発生しました。');
+        });
+    }
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h1 class="mb-0">
+            <i class="fas fa-newspaper"></i> 記事一覧
+        </h1>
+        <div>
+            <button id="deleteFilteredBtn" class="btn btn-danger me-2" style="display: none;">
+                <i class="fas fa-trash"></i> フィルター中の記事を削除
+            </button>
+            <button id="deleteSelectedBtn" class="btn btn-danger" style="display: none;">
+                <i class="fas fa-trash"></i> 選択した記事を削除 (<span id="selectedCount">0</span>)
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-filter"></i> フィルター
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="get" action="/articles">
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <label for="keyword" class="form-label">キーワード</label>
+                            <select name="keyword" id="keyword" class="form-select">
+                                <option value="">すべて</option>
+                                {% for kw in keywords %}
+                                    <option value="{{ kw.name }}" {% if selected_keyword == kw.name %}selected{% endif %}>
+                                        {{ kw.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label for="feed_id" class="form-label">RSSフィード</label>
+                            <select name="feed_id" id="feed_id" class="form-select">
+                                <option value="">すべて</option>
+                                {% for feed in feeds %}
+                                    <option value="{{ feed.id }}" {% if selected_feed_id == feed.id %}selected{% endif %}>
+                                        {{ feed.title }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label for="unread_only" class="form-label">読み状態</label>
+                            <select name="unread_only" id="unread_only" class="form-select">
+                                <option value="false" {% if not unread_only %}selected{% endif %}>すべて</option>
+                                <option value="true" {% if unread_only %}selected{% endif %}>未読のみ</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">&nbsp;</label>
+                            <div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-search"></i> 検索
+                                </button>
+                                <a href="/articles" class="btn btn-secondary">
+                                    <i class="fas fa-times"></i> クリア
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Info -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <p class="mb-0 text-muted">
+                {{ total_articles }}件中 {{ ((current_page - 1) * 20 + 1) }}〜{{ [current_page * 20, total_articles] | min }}件を表示
+            </p>
+            {% if total_pages > 1 %}
+            <nav aria-label="ページネーション">
+                <ul class="pagination pagination-sm mb-0">
+                    {% if current_page > 1 %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ current_page - 1 }}{% if selected_keyword %}&keyword={{ selected_keyword }}{% endif %}{% if selected_feed_id %}&feed_id={{ selected_feed_id }}{% endif %}{% if unread_only %}&unread_only=true{% endif %}">前</a>
+                        </li>
+                    {% endif %}
+                    
+                    {% for page_num in range(1, total_pages + 1) %}
+                        {% if page_num == current_page %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                        {% elif page_num <= 3 or page_num > total_pages - 3 or (page_num >= current_page - 1 and page_num <= current_page + 1) %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_num }}{% if selected_keyword %}&keyword={{ selected_keyword }}{% endif %}{% if selected_feed_id %}&feed_id={{ selected_feed_id }}{% endif %}{% if unread_only %}&unread_only=true{% endif %}">{{ page_num }}</a>
+                            </li>
+                        {% elif page_num == 4 or page_num == total_pages - 3 %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if current_page < total_pages %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ current_page + 1 }}{% if selected_keyword %}&keyword={{ selected_keyword }}{% endif %}{% if selected_feed_id %}&feed_id={{ selected_feed_id }}{% endif %}{% if unread_only %}&unread_only=true{% endif %}">次</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Articles List -->
+<div class="row">
+    <div class="col-12">
+        {% if articles %}
+            <div class="row">
+                {% for article in articles %}
+                <div class="col-md-6 mb-3">
+                    <div class="card article-card h-100 {% if not article.is_read %}unread{% endif %}" data-article-id="{{ article.id }}">
+                        <div class="card-body">
+                            <div class="form-check position-absolute top-0 end-0 mt-2 me-2">
+                                <input class="form-check-input article-checkbox" type="checkbox" value="{{ article.id }}" id="article-{{ article.id }}">
+                            </div>
+                            <h5 class="card-title">
+                                <a href="/article/{{ article.id }}" class="text-decoration-none">
+                                    {{ article.title[:100] }}{% if article.title|length > 100 %}...{% endif %}
+                                </a>
+                                {% if not article.is_read %}
+                                    <span class="badge bg-primary ms-2">未読</span>
+                                {% endif %}
+                            </h5>
+                            
+                            <!-- 「どんなもの？」セクションを表示 -->
+                            <p class="card-text text-muted">
+                                {% if article.top_summary %}
+                                    {{ article.top_summary[:150] }}{% if article.top_summary|length > 150 %}...{% endif %}
+                                {% else %}
+                                    {{ article.description[:150] }}{% if article.description|length > 150 %}...{% endif %}
+                                {% endif %}
+                            </p>
+                            
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar"></i>
+                                    {% if article.published_date %}
+                                        {{ article.published_date.strftime('%Y-%m-%d %H:%M') }}
+                                    {% else %}
+                                        {{ article.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                    {% endif %}
+                                </small>
+                                {% if article.is_summarized %}
+                                    <span class="badge bg-success">要約済み</span>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="mt-2">
+                                <small class="text-muted d-block">
+                                    <i class="fas fa-rss"></i> {{ article.feed.title }}
+                                </small>
+                                {% if article.author %}
+                                <small class="text-muted d-block">
+                                    <i class="fas fa-user"></i> {{ article.author }}
+                                </small>
+                                {% endif %}
+                            </div>
+                            
+                            {% if article.keywords %}
+                            <div class="mt-2">
+                                {% for keyword in article.keywords[:3] %}
+                                    <span class="badge bg-secondary keyword-badge me-1">{{ keyword.name }}</span>
+                                {% endfor %}
+                                {% if article.keywords|length > 3 %}
+                                    <span class="badge bg-light text-dark keyword-badge">+{{ article.keywords|length - 3 }}</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            
+                            <div class="mt-3 d-flex justify-content-between">
+                                <a href="/article/{{ article.id }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i> 詳細
+                                </a>
+                                <form method="post" action="/article/{{ article.id }}/delete" onsubmit="return confirm('この記事を削除してもよろしいですか？');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-trash"></i> 削除
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">記事が見つかりませんでした</h5>
+                    <p class="text-muted">フィルター条件を変更してみてください。</p>
+                    <a href="/articles" class="btn btn-primary">
+                        <i class="fas fa-refresh"></i> すべての記事を表示
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Bottom Pagination -->
+{% if total_pages > 1 %}
+<div class="row mt-4">
+    <div class="col-12">
+        <nav aria-label="ページネーション">
+            <ul class="pagination justify-content-center">
+                {% if current_page > 1 %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ current_page - 1 }}{% if selected_keyword %}&keyword={{ selected_keyword }}{% endif %}{% if selected_feed_id %}&feed_id={{ selected_feed_id }}{% endif %}{% if unread_only %}&unread_only=true{% endif %}">前</a>
+                    </li>
+                {% endif %}
+                
+                {% for page_num in range(1, total_pages + 1) %}
+                    {% if page_num == current_page %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                    {% elif page_num <= 3 or page_num > total_pages - 3 or (page_num >= current_page - 1 and page_num <= current_page + 1) %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_num }}{% if selected_keyword %}&keyword={{ selected_keyword }}{% endif %}{% if selected_feed_id %}&feed_id={{ selected_feed_id }}{% endif %}{% if unread_only %}&unread_only=true{% endif %}">{{ page_num }}</a>
+                        </li>
+                    {% elif page_num == 4 or page_num == total_pages - 3 %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if current_page < total_pages %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ current_page + 1 }}{% if selected_keyword %}&keyword={{ selected_keyword }}{% endif %}{% if selected_feed_id %}&feed_id={{ selected_feed_id }}{% endif %}{% if unread_only %}&unread_only=true{% endif %}">次</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
