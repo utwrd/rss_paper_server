@@ -228,6 +228,8 @@ URL: {article.link}
         try:
             for article in articles:
                 db_article = db.query(Article).filter(Article.id == article.id).first()
+                if db_article:
+                    db_article.is_read = True
 
             db.commit()
             logger.info(f"Marked {len(articles)} articles as read")
