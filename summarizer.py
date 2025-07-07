@@ -1,10 +1,14 @@
 import openai
-from typing import List, Optional
+from typing import List, Optional, Dict, Any, Tuple
 from sqlalchemy.orm import Session, joinedload
 from database import get_db, Article, EmailLog
 from config import settings
 import logging
 from datetime import datetime
+import requests
+import tempfile
+import os
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -42,12 +46,12 @@ URL: {article.link}
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4.1-nano",
+                model="o3-mini",
                 messages=[
-                    {"role": "system", "content": "あなたは研究論文や技術記事の要約を専門とするAIアシスタントです。落合フォーマットに従って、正確で簡潔な要約を作成してください。"},
+                    {"role": "system", "content": "あなたは研究論文や技術記事の要約を専門とするAIアシスタントです。落合フォーマットに従って、正確な要約を作成してください。"},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=2000,
+                max_tokens=5000,
                 temperature=1.0
             )
             
@@ -211,6 +215,7 @@ URL: {article.link}
         finally:
             db.close()
 
+
     def summarize_unread_articles(self, max_articles: int = None) -> str:
         """Summarize unread articles and return email content"""
         max_articles = max_articles or settings.max_articles_to_summarize
@@ -245,4 +250,4 @@ URL: {article.link}
 if __name__ == "__main__":
     summarizer = ArticleSummarizer()
     content = summarizer.summarize_unread_articles()
-    print(content)
+    logger.info(content)

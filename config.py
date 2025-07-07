@@ -9,15 +9,11 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql://rss_user:rss_password@db:5432/rss_db"
     
-    # Authentication
-    secret_key: str = secrets.token_hex(32)
-    algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60 * 24  # 24 hours
-    
     # OpenAI
     openai_api_key: str
     
     # Email
+    email_enabled: bool = True
     email_host: str = "smtp.gmail.com"
     email_port: int = 587
     email_user: str

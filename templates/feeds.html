@@ -2,6 +2,54 @@
 
 {% block title %}RSS管理 - RSS要約システム{% endblock %}
 
+{% block head %}
+<style>
+    .filter-keywords-textarea {
+        min-height: 80px;
+        resize: vertical;
+        overflow-y: auto;
+        word-wrap: break-word;
+        width: 100%;
+    }
+    
+    @media (max-width: 768px) {
+        .filter-keywords-textarea {
+            min-height: 100px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // テキストエリアの自動リサイズ機能
+        const textareas = document.querySelectorAll('.filter-keywords-textarea');
+        
+        textareas.forEach(textarea => {
+            // 初期コンテンツに基づいて高さを調整
+            adjustTextareaHeight(textarea);
+            
+            // 入力時に高さを調整
+            textarea.addEventListener('input', function() {
+                adjustTextareaHeight(this);
+            });
+            
+            // フォーカス時に高さを調整
+            textarea.addEventListener('focus', function() {
+                adjustTextareaHeight(this);
+            });
+        });
+        
+        function adjustTextareaHeight(element) {
+            // スクロールの高さに基づいて高さを調整
+            element.style.height = 'auto';
+            element.style.height = (element.scrollHeight) + 'px';
+        }
+    });
+</script>
+{% endblock %}
+
 {% block content %}
 <div class="row mb-4">
     <div class="col-12">
@@ -100,7 +148,7 @@
                                 <tr>
                                     <th>タイトル</th>
                                     <th>URL</th>
-                                    <th>フィルターキーワード</th>
+                                    <th style="width: 30%;">フィルターキーワード</th>
                                     <th>状態</th>
                                     <th>登録日</th>
                                     <th>操作</th>
@@ -122,12 +170,15 @@
                                         </a>
                                     </td>
                                     <td>
-                                        <form method="post" action="/feeds/{{ feed.id }}/update-filter" class="d-flex">
-                                            <input type="text" class="form-control form-control-sm me-2" name="filter_keywords" 
-                                                   value="{{ feed.filter_keywords or '' }}" placeholder="キーワード1, キーワード2, ...">
-                                            <button type="submit" class="btn btn-sm btn-outline-primary">
-                                                <i class="fas fa-save"></i>
-                                            </button>
+                                        <form method="post" action="/feeds/{{ feed.id }}/update-filter" class="d-flex flex-column w-100">
+                                            <div class="d-flex">
+                                                <textarea class="form-control form-control-sm me-2 filter-keywords-textarea" 
+                                                       name="filter_keywords" rows="4"
+                                                       placeholder="キーワード1 OR キーワード2 AND キーワード3">{{ feed.filter_keywords or '' }}</textarea>
+                                                <button type="submit" class="btn btn-sm btn-outline-primary align-self-start">
+                                                    <i class="fas fa-save"></i>
+                                                </button>
+                                            </div>
                                         </form>
                                     </td>
                                     <td>
@@ -190,7 +241,7 @@
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <h6>RSSフィードの追加方法</h6>
                         <ol>
                             <li>追加したいサイトのRSS URLを取得</li>
@@ -199,7 +250,7 @@
                             <li>自動的に記事の取得が開始されます</li>
                         </ol>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <h6>フィード管理</h6>
                         <ul>
                             <li><i class="fas fa-list text-primary"></i> 記事一覧: そのフィードの記事を表示</li>
@@ -207,6 +258,21 @@
                             <li><i class="fas fa-play text-warning"></i> 有効化: 記事の取得を再開</li>
                             <li><i class="fas fa-trash text-danger"></i> 削除: フィードと関連記事を削除</li>
                         </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>フィルターキーワードの構文</h6>
+                        <ul>
+                            <li><strong>単純なキーワード:</strong> <code>python</code></li>
+                            <li><strong>複数キーワード (OR):</strong> <code>python, javascript</code></li>
+                            <li><strong>AND演算:</strong> <code>python AND tutorial</code></li>
+                            <li><strong>OR演算:</strong> <code>python OR javascript</code></li>
+                            <li><strong>グループ化:</strong> <code>(python OR javascript) AND tutorial</code></li>
+                            <li><strong>複合条件:</strong> <code>(AI OR ML) AND (tutorial OR guide)</code></li>
+                        </ul>
+                        <p class="small text-muted mt-2">
+                            例: <code>(ワード1 OR ワード2) AND (ワード3 AND ワード4)</code><br>
+                            この場合、ワード1かワード2のどちらかが含まれ、かつワード3とワード4の両方が含まれる記事のみが取得されます。
+                        </p>
                     </div>
                 </div>
             </div>

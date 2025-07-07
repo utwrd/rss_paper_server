@@ -61,8 +61,8 @@
                 {% if article.keywords %}
                 <div class="mb-3">
                     <strong>キーワード:</strong>
-                    {% for keyword in article.keywords %}
-                        <span class="badge bg-secondary keyword-badge me-1">{{ keyword.name }}</span>
+                    {% for keyword in article.keywords.split(',') %}
+                        <span class="badge bg-secondary keyword-badge me-1">{{ keyword.strip() }}</span>
                     {% endfor %}
                 </div>
                 {% endif %}
@@ -72,6 +72,30 @@
                 <div class="mb-4">
                     <h5>概要</h5>
                     <p class="text-muted">{{ article.description }}</p>
+                </div>
+                {% endif %}
+                
+                <!-- Images from PDF -->
+                {% if images %}
+                <div class="mb-4">
+                    <h5>論文の図表</h5>
+                    <div class="row">
+                        {% for image in images %}
+                        <div class="col-12 mb-3">
+                            <div class="card">
+                                <div class="card-body p-2">
+                                    <img src="data:{{ image.mime_type }};base64,{{ image.data }}" 
+                                         class="img-fluid" 
+                                         alt="論文の図表 {{ loop.index }}"
+                                         style="max-height: 500px; width: auto; margin: 0 auto; display: block;">
+                                </div>
+                                <div class="card-footer p-2 text-center">
+                                    <small class="text-muted">図表 {{ loop.index }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
                 </div>
                 {% endif %}
 

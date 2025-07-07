@@ -3,11 +3,14 @@ import requests
 from datetime import datetime, timezone, timedelta
 import pytz
 from sqlalchemy.orm import Session
-from database import get_db, Article, RSSFeed, Keyword, article_keywords
-from typing import List, Optional
+from database import get_db, Article, RSSFeed
+from typing import List, Optional, Tuple
 import logging
 from bs4 import BeautifulSoup
 import re
+import json
+from filter_parser import FilterParser
+from figure_extractor import FigureExtractor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,6 +25,10 @@ class RSSFetcher:
         # Import summarizer here to avoid circular imports
         from summarizer import ArticleSummarizer
         self.summarizer = ArticleSummarizer()
+        # フィルターパーサーを初期化
+        self.filter_parser = FilterParser()
+        # 図抽出器を初期化
+        self.figure_extractor = FigureExtractor()
 
     def fetch_feed(self, feed_url: str) -> Optional[dict]:
         """Fetch RSS feed from URL"""
@@ -55,6 +62,66 @@ class RSSFetcher:
         text = ' '.join(chunk for chunk in chunks if chunk)
         
         return text
+        
+    def extract_pdf_link(self, article_url: str) -> Optional[str]:
+        """
+        記事のURLからPDFリンクを抽出する
+        
+        多くの論文サイトでは、HTMLページ内にPDFへのリンクが含まれています。
+        このメソッドは記事ページをスクレイピングしてPDFリンクを見つけます。
+        """
+        try:
+            logger.info(f"PDFリンクを抽出しています: {article_url}")
+            
+            # 記事ページを取得
+            response = self.session.get(article_url, timeout=30)
+            response.raise_for_status()
+            
+            # HTMLをパース
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # PDFリンクを探す（一般的なパターン）
+            pdf_patterns = [
+                # href属性に.pdfを含むリンク
+                lambda s: s.find('a', href=lambda href: href and href.endswith('.pdf')),
+                # PDFダウンロードボタンなど、テキストに'PDF'を含むリンク
+                lambda s: s.find('a', text=lambda text: text and 'PDF' in text.upper()),
+                # クラス名やIDにpdfを含む要素
+                lambda s: s.find('a', class_=lambda c: c and 'pdf' in c.lower()),
+                lambda s: s.find('a', id=lambda i: i and 'pdf' in i.lower()),
+                # data-format属性がpdfのリンク（arXivなど）
+                lambda s: s.find('a', attrs={'data-format': 'pdf'}),
+                # 特定のサイト向けのパターン（arXiv）
+                lambda s: s.find('a', attrs={'title': 'Download PDF'}),
+                # href属性にpdfを含むリンク（arXiv新パターン）
+                lambda s: s.find('a', href=lambda href: href and 'pdf' in href.lower()),
+                # テキストが"View PDF"のリンク（arXiv新パターン）
+                lambda s: s.find('a', text=lambda text: text and 'View PDF' in text),
+                # class属性にdownload-pdfを含むリンク（arXiv新パターン）
+                lambda s: s.find('a', class_=lambda c: c and 'download-pdf' in c)
+            ]
+
+            # 各パターンを試す
+            for pattern in pdf_patterns:
+                pdf_link_element = pattern(soup)
+                if pdf_link_element and 'href' in pdf_link_element.attrs:
+                    pdf_url = pdf_link_element['href']
+                    
+                    # 相対URLの場合は絶対URLに変換
+                    if pdf_url.startswith('/'):
+                        from urllib.parse import urlparse
+                        base_url = "{0.scheme}://{0.netloc}".format(urlparse(article_url))
+                        pdf_url = base_url + pdf_url
+                    
+                    logger.info(f"PDFリンクを見つけました: {pdf_url}")
+                    return pdf_url
+            
+            logger.info(f"PDFリンクが見つかりませんでした: {article_url}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"PDFリンク抽出中にエラーが発生しました: {e}")
+            return None
 
     def parse_date(self, date_string: str) -> Optional[datetime]:
         """Parse date string to datetime object and convert to JST"""
@@ -84,27 +151,45 @@ class RSSFetcher:
             query = query.filter(Article.guid == guid)
         return query.first() is not None
 
-    def check_keywords_match(self, db: Session, title: str, description: str, feed: RSSFeed = None) -> List[Keyword]:
+    def check_keywords_match(self, db: Session, title: str, description: str, feed: RSSFeed = None) -> Tuple[str, List[str]]:
         """
-        Check if title or description contains any keywords from the database or feed-specific keywords
-        Returns a list of matching keywords
-        """
-        # Convert title and description to lowercase for case-insensitive matching
-        text = f"{title} {description}".lower()
-        logger.info(f"Article : {feed.filter_keywords}")
-        # Check feed-specific keywords if provided
-        matching_keywords = []
-        if feed.filter_keywords is None:
-            return "None", matching_keywords
+        Check if title or description matches the filter expression
+        Returns a tuple of (result, matching_keywords)
         
-        feed_keywords = [kw.strip() for kw in feed.filter_keywords.split(',') if kw.strip()]
-        if len(feed_keywords) > 0:
+        フィルター式の構文:
+        - 単純なキーワード: "keyword"
+        - カンマ区切りのキーワード: "keyword1, keyword2" (いずれかがマッチすればOK)
+        - OR演算: "keyword1 OR keyword2" (いずれかがマッチすればOK)
+        - AND演算: "keyword1 AND keyword2" (両方がマッチする必要あり)
+        - グループ化: "(keyword1 OR keyword2) AND keyword3"
+        """
+        # タイトルと説明文を結合したテキスト
+        text = f"{title} {description}"
+        logger.info(f"Article : {feed.filter_keywords}")
+        
+        # フィルターキーワードがない場合
+        if feed.filter_keywords is None or feed.filter_keywords.strip() == '':
+            return "None", []
+        
+        try:
+            # フィルター式を解析して評価
+            matches, matching_keywords = self.filter_parser.parse_and_evaluate(feed.filter_keywords, text)
+            
+            # マッチするかどうかの結果を返す
+            result = "Match" if matches else "None"
+            return result, matching_keywords
+            
+        except Exception as e:
+            logger.error(f"フィルター式の評価中にエラーが発生しました: {e}")
+            # エラーが発生した場合は、従来の方法でフィルタリング
+            feed_keywords = [kw.strip() for kw in feed.filter_keywords.split(',') if kw.strip()]
+            matching_keywords = []
             for keyword in feed_keywords:
-                if keyword.lower() in text:
+                if keyword.lower() in text.lower():
                     matching_keywords.append(keyword)
-
-        result = "None" if len(matching_keywords) == 0 else "Match"
-        return result, matching_keywords
+            
+            result = "None" if len(matching_keywords) == 0 else "Match"
+            return result, matching_keywords
 
     def save_article(self, db: Session, feed: RSSFeed, entry: dict) -> Optional[Article]:
         """Save article to database"""
@@ -142,20 +227,17 @@ class RSSFetcher:
             db.add(article)
             db.flush()  # Get the article ID
 
-            # Associate matching keywords with article
-            for keyword_name in matching_keywords:
-                # キーワードが既に存在するか確認
-                existing_keyword = db.query(Keyword).filter(Keyword.name == keyword_name).first()
-                if existing_keyword:
-                    # 既存のキーワードを使用
-                    if existing_keyword not in article.keywords:
-                        article.keywords.append(existing_keyword)
-                else:
-                    # 新しいキーワードを作成
-                    new_keyword = Keyword(name=keyword_name, is_active=True)
-                    db.add(new_keyword)
-                    db.flush()  # IDを取得するためにflush
-                    article.keywords.append(new_keyword)
+            # キーワードをカンマ区切りの文字列として保存
+            article.keywords = ','.join(matching_keywords)
+            
+            # PDFリンクを抽出して保存
+            try:
+                pdf_link = self.extract_pdf_link(link)
+                if pdf_link:
+                    article.pdf_link = pdf_link
+                    logger.info(f"PDFリンクを保存しました: {pdf_link}")
+            except Exception as e:
+                logger.error(f"PDFリンク抽出中にエラーが発生しました: {e}")
 
             # Create summary immediately after saving
             logger.info(f"Creating summary for new article: {title}")
@@ -165,6 +247,12 @@ class RSSFetcher:
             
             db.commit()
             logger.info(f"Saved new article with summary: {title}")
+            
+            # サマリー作成後に画像処理を実行
+            if article.pdf_link:
+                logger.info(f"Processing images for article: {title}")
+                self.figure_extractor.process_article_images(article.id)
+            
             return article
 
         except Exception as e:

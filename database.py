@@ -1,11 +1,10 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.sql import func
 from datetime import datetime
 import pytz
 from config import settings
-from passlib.context import CryptContext
 
 # JSTタイムゾーンを設定
 jst = pytz.timezone('Asia/Tokyo')
@@ -18,14 +17,6 @@ def get_jst_now():
 engine = create_engine(settings.database_url)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
-
-# Association table for many-to-many relationship between articles and keywords
-article_keywords = Table(
-    'article_keywords',
-    Base.metadata,
-    Column('article_id', Integer, ForeignKey('articles.id'), primary_key=True),
-    Column('keyword_id', Integer, ForeignKey('keywords.id'), primary_key=True)
-)
 
 
 class RSSFeed(Base):
@@ -57,6 +48,9 @@ class Article(Base):
     is_read = Column(Boolean, default=False)
     is_summarized = Column(Boolean, default=False)
     summary = Column(Text)
+    keywords = Column(Text)  # キーワードをカンマ区切りの文字列として保存
+    pdf_link = Column(String)  # PDFへのリンク
+    image_urls = Column(Text)  # 画像URLをJSON形式で保存
     
     # 落合フォーマットの各セクション
     top_summary = Column(Text)  # 1. どんなもの？
@@ -74,32 +68,8 @@ class Article(Base):
     
     # Relationships
     feed = relationship("RSSFeed", back_populates="articles")
-    keywords = relationship("Keyword", secondary=article_keywords, back_populates="articles")
 
 
-class Keyword(Base):
-    __tablename__ = "keywords"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, index=True, nullable=False)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=get_jst_now)
-    
-    # Relationship
-    articles = relationship("Article", secondary=article_keywords, back_populates="keywords")
-
-
-class User(Base):
-    __tablename__ = "users"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True, nullable=False)
-    email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    is_active = Column(Boolean, default=True)
-    is_admin = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=get_jst_now)
-    updated_at = Column(DateTime, default=get_jst_now, onupdate=get_jst_now)
 
 
 class EmailLog(Base):
@@ -114,14 +84,6 @@ class EmailLog(Base):
     status = Column(String, default="sent")  # sent, failed
 
 
-# パスワードハッシュ化のためのユーティリティ
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-def get_password_hash(password):
-    return pwd_context.hash(password)
-
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
 
 def get_db():
     db = SessionLocal()
@@ -137,4 +99,4 @@ def create_tables():
 
 if __name__ == "__main__":
     create_tables()
-    print("Database tables created successfully!")
+    logger.info("Database tables created successfully!")
