@@ -10,11 +10,17 @@ class FilterParser:
     
     サポートする構文:
     - 単純なキーワード: "keyword"
+    - 文章を含むキーワード: "python tutorial"
     - OR演算: "keyword1 OR keyword2"
     - AND演算: "keyword1 AND keyword2"
     - グループ化: "(keyword1 OR keyword2) AND keyword3"
+    - カンマ区切り: "keyword1, keyword2"
     
-    大文字小文字は区別しません。
+    注意: 
+    - 論理演算子は大文字の"AND"と"OR"のみ認識されます。
+      小文字の"and"や"or"はキーワードの一部として扱われます。
+    - "OR"、"AND"、"("、")"、","を目印として文章を分割します。
+      例えば、"python tutorial OR test"は"python tutorial"と"test"の2つのキーワードに分割されます。
     """
     
     def __init__(self):
@@ -35,18 +41,62 @@ class FilterParser:
         # 空白を正規化
         expression = filter_expression.strip()
         
-        # カッコの前後にスペースを追加
+        # 特殊トークン（OR, AND, (, ), ,）の前後にスペースを追加
         expression = re.sub(r'\(', ' ( ', expression)
         expression = re.sub(r'\)', ' ) ', expression)
+        expression = re.sub(r'\bOR\b', ' OR ', expression)
+        expression = re.sub(r'\bAND\b', ' AND ', expression)
+        expression = re.sub(r',', ' , ', expression)
         
         # 連続する空白を1つにまとめる
         expression = re.sub(r'\s+', ' ', expression)
         
+        # 特殊トークンのリスト
+        special_tokens = ['OR', 'AND', '(', ')', ',']
+        
         # トークンに分割
         if expression:
-            tokens = expression.split(' ')
+            raw_tokens = expression.split(' ')
             # 空のトークンを削除
-            tokens = [token for token in tokens if token]
+            raw_tokens = [token for token in raw_tokens if token]
+            
+            # 特殊トークン以外の連続するトークンをまとめる
+            tokens = []
+            current_phrase = []
+            in_parentheses = 0  # カッコ内のレベルを追跡
+            
+            for token in raw_tokens:
+                if token == '(':
+                    # 現在の文章があれば追加
+                    if current_phrase:
+                        tokens.append(' '.join(current_phrase))
+                        current_phrase = []
+                    # 開きカッコを追加
+                    tokens.append(token)
+                    in_parentheses += 1
+                elif token == ')':
+                    # 現在の文章があれば追加
+                    if current_phrase:
+                        tokens.append(' '.join(current_phrase))
+                        current_phrase = []
+                    # 閉じカッコを追加
+                    tokens.append(token)
+                    in_parentheses -= 1
+                elif token in special_tokens:
+                    # 現在の文章があれば追加
+                    if current_phrase:
+                        tokens.append(' '.join(current_phrase))
+                        current_phrase = []
+                    # 特殊トークンを追加
+                    tokens.append(token)
+                else:
+                    # 通常のトークンは文章に追加
+                    current_phrase.append(token)
+            
+            # 最後の文章があれば追加
+            if current_phrase:
+                tokens.append(' '.join(current_phrase))
+            
             return tokens
         return []
     
@@ -95,7 +145,7 @@ class FilterParser:
         """
         left = self.parse_term()
         
-        while self.current_token and self.current_token.upper() == 'OR':
+        while self.current_token and self.current_token == 'OR':
             self.get_next_token()  # 'OR'をスキップ
             right = self.parse_term()
             left = {'type': 'OR', 'left': left, 'right': right}
@@ -106,7 +156,7 @@ class FilterParser:
         """項を解析する"""
         left = self.parse_factor()
         
-        while self.current_token and self.current_token.upper() == 'AND':
+        while self.current_token and self.current_token == 'AND':
             self.get_next_token()  # 'AND'をスキップ
             right = self.parse_factor()
             left = {'type': 'AND', 'left': left, 'right': right}
@@ -130,7 +180,7 @@ class FilterParser:
             return expression
         
         # キーワード
-        if self.current_token.upper() not in ['AND', 'OR', '(', ')']:
+        if self.current_token not in ['AND', 'OR', '(', ')']:
             keyword = self.current_token
             self.get_next_token()
             return {'type': 'KEYWORD', 'value': keyword}
@@ -255,18 +305,34 @@ class FilterParser:
 if __name__ == "__main__":
     parser = FilterParser()
     
+    # トークン化のテスト
+    print("=== トークン化のテスト ===")
+    print(parser.tokenize("python tutorial OR test"))  # ['python tutorial', 'OR', 'test']
+    print(parser.tokenize("python and tutorial AND test"))  # ['python and tutorial', 'AND', 'test']
+    print(parser.tokenize("(python OR javascript) AND tutorial"))  # ['(', 'python', 'OR', 'javascript', ')', 'AND', 'tutorial']
+    print(parser.tokenize("python tutorial, test"))  # ['python tutorial', ',', 'test']
+    
     # 単純なキーワード
-    logger.info(parser.parse_and_evaluate("python", "This is a Python tutorial"))  # True, ['python']
+    print("\n=== 単純なキーワードのテスト ===")
+    print(parser.parse_and_evaluate("python", "This is a Python tutorial"))  # True, ['python']
     
     # OR演算
-    logger.info(parser.parse_and_evaluate("python OR javascript", "This is a Python tutorial"))  # True, ['python']
-    logger.info(parser.parse_and_evaluate("python OR javascript", "This is a JavaScript tutorial"))  # True, ['javascript']
+    print("\n=== OR演算のテスト ===")
+    print(parser.parse_and_evaluate("python OR javascript", "This is a Python tutorial"))  # True, ['python']
+    print(parser.parse_and_evaluate("python OR javascript", "This is a JavaScript tutorial"))  # True, ['javascript']
     
     # AND演算
-    logger.info(parser.parse_and_evaluate("python AND tutorial", "This is a Python tutorial"))  # True, ['python', 'tutorial']
-    logger.info(parser.parse_and_evaluate("python AND javascript", "This is a Python tutorial"))  # False, []
+    print("\n=== AND演算のテスト ===")
+    print(parser.parse_and_evaluate("python AND tutorial", "This is a Python tutorial"))  # True, ['python', 'tutorial']
+    print(parser.parse_and_evaluate("python AND javascript", "This is a Python tutorial"))  # False, []
     
     # グループ化
-    logger.info(parser.parse_and_evaluate("(python OR javascript) AND tutorial", "This is a Python tutorial"))  # True, ['python', 'tutorial']
-    logger.info(parser.parse_and_evaluate("(python OR javascript) AND tutorial", "This is a JavaScript tutorial"))  # True, ['javascript', 'tutorial']
-    logger.info(parser.parse_and_evaluate("(python OR javascript) AND (tutorial OR guide)", "This is a JavaScript guide"))  # True, ['javascript', 'guide']
+    print("\n=== グループ化のテスト ===")
+    print(parser.parse_and_evaluate("(python OR javascript) AND tutorial", "This is a Python tutorial"))  # True, ['python', 'tutorial']
+    print(parser.parse_and_evaluate("(python OR javascript) AND tutorial", "This is a JavaScript tutorial"))  # True, ['javascript', 'tutorial']
+    print(parser.parse_and_evaluate("(python OR javascript) AND (tutorial OR guide)", "This is a JavaScript guide"))  # True, ['javascript', 'guide']
+    
+    # 文章を含むフィルター式のテスト
+    print("\n=== 文章を含むフィルター式のテスト ===")
+    print(parser.parse_and_evaluate("python tutorial OR test", "This is a Python tutorial about testing"))  # True, ['python tutorial']
+    print(parser.parse_and_evaluate("python and tutorial AND test", "This is a Python and tutorial with tests"))  # True, ['python and tutorial', 'test']
