@@ -46,7 +46,7 @@ URL: {article.link}
 
         try:
             response = self.client.chat.completions.create(
-                model="o4-mini-2025-04-16",
+                model=settings.gpt_model,
                 messages=[
                     {
                         "role": "system",

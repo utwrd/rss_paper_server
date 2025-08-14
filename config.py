@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     # Request settings
     request_timeout: int = 30  # seconds
     
+    # GPT model
+    gpt_model: str = 'o4-mini-2025-04-16'
+    
+    # Fetch schedule
+    rss_fetch_interval_hour :int = 6 # hours
+
     class Config:
         env_file = ".env"
         case_sensitive = False

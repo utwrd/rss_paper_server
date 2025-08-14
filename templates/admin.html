@@ -231,9 +231,9 @@
                     <div class="col-md-6">
                         <h6>スケジュール設定</h6>
                         <ul class="list-unstyled">
-                            <li><strong>RSS取得:</strong> 6時間ごと</li>
-                            <li><strong>要約メール:</strong> 毎日7:00</li>
-                            <li><strong>最大要約記事数:</strong> 10件</li>
+                            <li><strong>RSS取得:</strong> {{settings.rss_fetch_interval_hour}}時間ごと</li>
+                            <li><strong>要約メール:</strong> 毎日{{settings.summary_email_hour}}時</li>
+                            <li><strong>最大要約記事数:</strong> {{settings.max_articles_to_summarize}}件</li>
                         </ul>
                     </div>
                     <div class="col-md-6">
@@ -241,7 +241,7 @@
                         <ul class="list-unstyled">
                             <li><strong>アプリケーション:</strong> FastAPI</li>
                             <li><strong>データベース:</strong> PostgreSQL</li>
-                            <li><strong>AI要約:</strong> OpenAI GPT-3.5</li>
+                            <li><strong>AI要約:</strong> {{settings.gpt_model}} </li>
                             <li><strong>要約形式:</strong> 落合フォーマット</li>
                         </ul>
                     </div>

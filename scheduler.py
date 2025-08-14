@@ -92,7 +92,7 @@ class TaskScheduler:
         # Parse cron-like schedule for RSS fetching (simplified)
         # For now, we'll use simple schedule library syntax
         # RSS fetch every 6 hours
-        schedule.every(6).hours.do(self.fetch_rss_job)
+        schedule.every(settings.rss_fetch_interval_hour).hours.do(self.fetch_rss_job)
         
         # Summary email every day at configured time (JST)
         import pytz

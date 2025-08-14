@@ -298,7 +298,8 @@ async def admin_panel(
     return templates.TemplateResponse("admin.html", {
         "request": request,
         "email_logs": email_logs,
-        "schedule_info": schedule_info
+        "schedule_info": schedule_info,
+        "settings": settings,
     })
 
 
