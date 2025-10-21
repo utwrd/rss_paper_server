@@ -62,7 +62,8 @@ class TaskScheduler:
                 and_(
                     Article.is_read == True,
                     Article.read_at != None,
-                    Article.read_at < cutoff_date
+                    Article.read_at < cutoff_date,
+                    Article.is_favorite == False
                 )
             ).delete(synchronize_session=False)
             db.commit()
@@ -76,12 +77,18 @@ class TaskScheduler:
         logger.info(f"Starting cleanup of unread articles if over limit of {limit}")
         try:
             db: Session = next(get_db())
-            unread_count = db.query(Article).filter(Article.is_read == False).count()
+            unread_count = db.query(Article).filter(
+                and_(Article.is_read == False, Article.is_favorite == False)
+            ).count()
             if unread_count > limit:
                 to_delete = unread_count - limit
-                old_unread = db.query(Article).filter(Article.is_read == False).order_by(Article.published_at.asc()).limit(to_delete).all()
+                old_unread = db.query(Article).filter(
+                    and_(Article.is_read == False, Article.is_favorite == False)
+                ).order_by(Article.published_at.asc()).limit(to_delete).all()
                 ids = [a.id for a in old_unread]
-                deleted = db.query(Article).filter(Article.id.in_(ids)).delete(synchronize_session=False)
+                deleted = db.query(Article).filter(
+                    Article.id.in_(ids)
+                ).delete(synchronize_session=False)
                 db.commit()
                 logger.info(f"Deleted {deleted} old unread articles to keep under {limit}")
         except Exception as e:
