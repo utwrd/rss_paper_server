@@ -7,7 +7,6 @@ from sqlalchemy import desc, and_, or_
 from database import get_db, Article, RSSFeed, EmailLog, get_jst_now
 from rss_fetcher import RSSFetcher
 from summarizer import ArticleSummarizer
-from figure_extractor import FigureExtractor
 from email_sender import EmailSender
 from scheduler import TaskScheduler
 from typing import List, Optional
@@ -27,7 +26,6 @@ templates = Jinja2Templates(directory="templates")
 # Initialize components
 rss_fetcher = RSSFetcher()
 summarizer = ArticleSummarizer()
-figure_extractor = FigureExtractor()
 email_sender = EmailSender()
 scheduler = TaskScheduler()
 
@@ -165,31 +163,9 @@ async def article_detail(request: Request, article_id: int, db: Session = Depend
         article.is_read = True
     db.commit()
     
-    # PDFリンクがあり、画像が抽出されていない場合は画像を抽出
-    if article.pdf_link and not article.image_urls:
-        figure_extractor.process_article_images(article_id)
-        # 最新の状態を取得
-        article = db.query(Article).filter(Article.id == article_id).first()
-    
-    # 画像データの処理
-    images = []
-    if article.image_urls:
-        try:
-            images_data = json.loads(article.image_urls)
-            for img in images_data:
-                images.append({
-                    "data": img["data"],
-                    "mime_type": img["mime_type"],
-                    "width": img["width"],
-                    "height": img["height"]
-                })
-        except Exception as e:
-            logger.error(f"画像データの解析中にエラーが発生しました: {e}")
-    
     return templates.TemplateResponse("article_detail.html", {
         "request": request,
-        "article": article,
-        "images": images
+        "article": article
     })
 
 
