@@ -20,7 +20,12 @@
         <!-- Article Content -->
         <div class="card">
             <div class="card-header">
-                <h1 class="h4 mb-0">{{ article.title }}</h1>
+                <h1 class="h4 mb-0">
+                    {{ article.title }}
+                    {% if article.is_favorite %}
+                        <i class="fas fa-star text-warning ms-2" title="お気に入り"></i>
+                    {% endif %}
+                </h1>
             </div>
             <div class="card-body">
                 <!-- Article Meta -->
@@ -45,6 +50,14 @@
                     </div>
                     <div class="col-md-6 text-end">
                         <div class="d-flex justify-content-end gap-2">
+                            <form method="post" action="/article/{{ article.id }}/favorite" class="d-inline">
+                                <input type="hidden" name="favorite" value="{{ 'false' if article.is_favorite else 'true' }}">
+                                <input type="hidden" name="redirect_url" value="{{ request.url.path }}">
+                                <button type="submit" class="btn btn-sm {% if article.is_favorite %}btn-warning{% else %}btn-outline-warning{% endif %}">
+                                    <i class="{% if article.is_favorite %}fas{% else %}far{% endif %} fa-star"></i>
+                                    {% if article.is_favorite %}お気に入り解除{% else %}お気に入り保存{% endif %}
+                                </button>
+                            </form>
                             <a href="{{ article.link }}" target="_blank" class="btn btn-primary btn-sm">
                                 <i class="fas fa-external-link-alt"></i> 元記事を読む
                             </a>
@@ -254,6 +267,10 @@
                     <tr>
                         <td><strong>登録日時</strong></td>
                         <td><small>{{ article.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                    </tr>
+                    <tr>
+                        <td><strong>既読日時</strong></td>
+                        <td><small>{{ article.read_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
                     </tr>
                 </table>
             </div>

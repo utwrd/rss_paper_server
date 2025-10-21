@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, ForeignKey, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.sql import func
@@ -46,11 +46,13 @@ class Article(Base):
     published_date = Column(DateTime)
     guid = Column(String, unique=True, index=True)
     is_read = Column(Boolean, default=False)
+    read_at = Column(DateTime, nullable=True)
     is_summarized = Column(Boolean, default=False)
     summary = Column(Text)
     keywords = Column(Text)  # キーワードをカンマ区切りの文字列として保存
     pdf_link = Column(String)  # PDFへのリンク
     image_urls = Column(Text)  # 画像URLをJSON形式で保存
+    is_favorite = Column(Boolean, default=False, nullable=False, server_default=text("false"))
     
     # 落合フォーマットの各セクション
     top_summary = Column(Text)  # 1. どんなもの？
@@ -95,6 +97,16 @@ def get_db():
 
 def create_tables():
     Base.metadata.create_all(bind=engine)
+    # Ensure new columns exist when the schema evolves without explicit migrations
+    with engine.begin() as connection:
+        connection.execute(text("""
+            ALTER TABLE articles
+            ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN NOT NULL DEFAULT false
+        """))
+        connection.execute(text("""
+            ALTER TABLE articles
+            ADD COLUMN IF NOT EXISTS read_at TIMESTAMP
+        """))
 
 
 if __name__ == "__main__":

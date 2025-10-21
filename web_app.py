@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_, or_
-from database import get_db, Article, RSSFeed, EmailLog
+from database import get_db, Article, RSSFeed, EmailLog, get_jst_now
 from rss_fetcher import RSSFetcher
 from summarizer import ArticleSummarizer
 from figure_extractor import FigureExtractor
@@ -84,6 +84,7 @@ async def articles_list(
     keyword: Optional[str] = None,
     feed_id: Optional[str] = None,
     unread_only: bool = True,
+    favorite_only: bool = False,
     db: Session = Depends(get_db)
 ):
     """Articles list with filtering"""
@@ -106,12 +107,17 @@ async def articles_list(
     
     if keyword:
         query = query.filter(Article.keywords.ilike(f"%{keyword}%"))
+
+    if favorite_only:
+        query = query.filter(Article.is_favorite == True)
     
     # Get total count
     total = query.count()
     
     # Get articles for current page
     articles = query.order_by(desc(Article.created_at)).offset(offset).limit(per_page).all()
+    start_index = offset + 1 if total > 0 else 0
+    end_index = min(offset + len(articles), total) if total > 0 else 0
     
     # Get feeds for filter dropdown
     feeds = db.query(RSSFeed).filter(RSSFeed.is_active == True).all()
@@ -137,9 +143,12 @@ async def articles_list(
         "current_page": page,
         "total_pages": total_pages,
         "total_articles": total,
-        "selected_keyword": "", # TODO: it should be keyword, however it does not work.
+        "selected_keyword": keyword or "",
         "selected_feed_id": feed_id,
-        "unread_only": unread_only
+        "unread_only": unread_only,
+        "favorite_only": favorite_only,
+        "start_index": start_index,
+        "end_index": end_index
     })
 
 
@@ -151,9 +160,10 @@ async def article_detail(request: Request, article_id: int, db: Session = Depend
         raise HTTPException(status_code=404, detail="Article not found")
     
     # Mark as read
+    article.read_at = get_jst_now()
     if not article.is_read:
         article.is_read = True
-        db.commit()
+    db.commit()
     
     # PDFリンクがあり、画像が抽出されていない場合は画像を抽出
     if article.pdf_link and not article.image_urls:
@@ -356,6 +366,26 @@ async def delete_article(
     
     # Redirect to articles list
     return RedirectResponse(url="/articles", status_code=303)
+
+
+@app.post("/article/{article_id}/favorite")
+async def toggle_favorite_article(
+    request: Request,
+    article_id: int,
+    favorite: bool = Form(...),
+    redirect_url: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """お気に入り状態の切り替え"""
+    article = db.query(Article).filter(Article.id == article_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="記事が見つかりません")
+
+    article.is_favorite = favorite
+    db.commit()
+
+    target_url = redirect_url or request.headers.get("referer") or "/articles"
+    return RedirectResponse(url=target_url, status_code=303)
 
 
 @app.post("/articles/delete-multiple")
